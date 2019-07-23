@@ -108,7 +108,7 @@ func (bf *bfProgram) scanV() {
 	fmt.Scanf("%v", &input)
 
 	if input > 127 {
-		input = 0
+		input = input % 128
 	}
 
 	bf.memories[bf.pointer] = input
@@ -138,6 +138,13 @@ func (bf *bfProgram) startL(i int) int {
 }
 
 func (bf *bfProgram) finishL(i int) int {
+
+	if len(bf.loopStack) == 0 {
+
+		fmt.Println("Can't find start of loop")
+		return i
+
+	}
 
 	if bf.memories[bf.pointer] != 0 {
 
