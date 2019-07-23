@@ -15,7 +15,7 @@ const (
 	ValueDecrease
 	ValuePrint
 	ValueScan
-	LoopStart
+	LoopBegin
 	LoopEnd
 )
 
@@ -25,10 +25,11 @@ const (
 )
 
 type bfProgram struct {
-	memories []byte
-	pointer  uint16
-	stack    []int
-	reader   *bufio.Reader
+	memories  []byte
+	pointer   uint16
+	loopStack []int
+	reader    *bufio.Reader
+	command   []Bfunc
 }
 
 func InitBF(file *os.File) *bfProgram {
@@ -56,11 +57,13 @@ func main() {
 
 		for err == nil {
 			char, err = bf.reader.ReadByte()
-			bf.Control(char)
+			bf.Interpret(char)
 		}
+
+		bf.Excute()
 	}
 
-	fmt.Printf("\nAll File Read Successfully!\n")
+	fmt.Printf("\nAll File Has Been Read Successfully!\n")
 }
 
 func (bf *bfProgram) increaseP() {
@@ -96,7 +99,7 @@ func (bf *bfProgram) decreaseV() {
 }
 
 func (bf *bfProgram) printV() {
-	fmt.Printf("%d ", bf.memories[bf.pointer])
+	fmt.Printf("%s", string(bf.memories[bf.pointer]))
 }
 
 func (bf *bfProgram) scanV() {
@@ -112,69 +115,95 @@ func (bf *bfProgram) scanV() {
 
 }
 
-func (bf *bfProgram) loopStart() {
-	bf.stack = append(bf.stack, 0)
-}
-
-func (bf *bfProgram) loopEnd() {
+func (bf *bfProgram) startL(i int) int {
 
 	if bf.memories[bf.pointer] != 0 {
-		bf.loopBack()
+
+		bf.loopStack = append(bf.loopStack, i)
+		return i
+
 	} else {
-		bf.loopFinish()
-	}
-}
 
-func (bf *bfProgram) loopRefresh() {
+		for n := i; n <= len(bf.command); n++ {
+			if bf.command[n] == LoopEnd {
+				return n
+			}
+		}
 
-	for n := range bf.stack {
-		bf.stack[n]++
-	}
+		fmt.Println("Can't find end of loop")
+		return i
 
-}
-
-func (bf *bfProgram) loopBack() {
-
-	for n := range bf.stack {
-		bf.stack[n] -= bf.stack[len(bf.stack)-1]
-	}
-
-	for i := 0; i < bf.stack[len(bf.stack)-1]; i++ {
-		bf.reader.UnreadByte()
 	}
 
 }
 
-func (bf *bfProgram) loopFinish() {
+func (bf *bfProgram) finishL(i int) int {
 
-	bf.stack[len(bf.stack)-1] = 0
-	bf.stack = bf.stack[:len(bf.stack)-1]
+	if bf.memories[bf.pointer] != 0 {
+
+		return bf.loopStack[len(bf.loopStack)-1]
+
+	} else {
+
+		bf.loopStack = bf.loopStack[:len(bf.loopStack)-1]
+		return i
+
+	}
 
 }
 
-func (bf *bfProgram) Control(char byte) {
+func (bf *bfProgram) Interpret(char byte) {
+
+	insert := func(command Bfunc) {
+		bf.command = append(bf.command, command)
+	}
 
 	switch char {
 	case '>':
-		bf.increaseP()
+		insert(PointerIncrease)
 	case '<':
-		bf.decreaseP()
+		insert(PointerDecrease)
 	case '+':
-		bf.increaseV()
+		insert(ValueIncrease)
 	case '-':
-		bf.decreaseV()
+		insert(ValueDecrease)
 	case '.':
-		bf.printV()
+		insert(ValuePrint)
 	case ',':
-		bf.scanV()
+		insert(ValueScan)
 	case '[':
-		bf.loopStart()
+		insert(LoopBegin)
 	case ']':
-		bf.loopEnd()
-		return
+		insert(LoopEnd)
 	}
 
-	bf.loopRefresh()
+}
+
+func (bf *bfProgram) Excute() {
+
+	for i := 0; i < len(bf.command); i++ {
+
+		switch bf.command[i] {
+		case PointerIncrease:
+			bf.increaseP()
+		case PointerDecrease:
+			bf.decreaseP()
+		case ValueIncrease:
+			bf.increaseV()
+		case ValueDecrease:
+			bf.decreaseV()
+		case ValuePrint:
+			bf.printV()
+		case ValueScan:
+			bf.scanV()
+		case LoopBegin:
+			i = bf.startL(i)
+		case LoopEnd:
+			i = bf.finishL(i)
+		}
+
+	}
+
 }
 
 func checkArgs() {
